@@ -6,14 +6,12 @@ import java.security.NoSuchAlgorithmException;
 
 public class HashUtils {
 
-    private static final byte[] HEADERPADDING = hexToBytes("000000800000000000000000000000000000000000000000000000000000000000000000000000000000000080020000");
-
     private static final MessageDigest HASHER;
 
     static {
         MessageDigest md = null;
         try {
-            md = MessageDigest.getInstance("SHA256");
+            md = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
@@ -31,11 +29,11 @@ public class HashUtils {
     }
 
     public static String bytesToHex(byte[] d) {
-        StringBuilder sb = new StringBuilder(d.length * 2);
         int lim = d.length * 2;
+        StringBuilder sb = new StringBuilder(lim);
         for (int i = 0; i < lim; i += 2) {
-            sb.setCharAt(i, Character.forDigit(d[i / 2] >>> 4, 16));
-            sb.setCharAt(i + 1, Character.forDigit(d[i / 2] & 0xF,  16));
+            sb.append(Character.forDigit(d[i / 2] >> 4 & 0xF, 16));
+            sb.append(Character.forDigit(d[i / 2] & 0xF,  16));
         }
         return sb.toString();
     }
@@ -60,17 +58,36 @@ public class HashUtils {
         return sha256(sha256(data, moreData));
     }
 
-    public static byte[] blockHash(byte[] blockHeaderStart, int nonce) {
-        HASHER.update(blockHeaderStart);
-        HASHER.update((byte) (nonce >> 24));
-        HASHER.update((byte) (nonce >> 16));
-        HASHER.update((byte) (nonce >> 8));
-        HASHER.update((byte) nonce);
-        HASHER.update(HEADERPADDING);
-        return HASHER.digest();
+    public static byte[] buildBlockHeaderWithoutNonce(byte[] version, byte[] lastHash, byte[] merkleRoot, int ntime, byte[] nbits) {
+        byte[] header = new byte[76];
+        copyReversed(version, header, 0);
+        copyReversed(lastHash, header, 4);
+        copyReversed(merkleRoot, header, 36);
+        header[68] = (byte) (ntime);
+        header[69] = (byte) (ntime >> 8);
+        header[70] = (byte) (ntime >> 16);
+        header[71] = (byte) (ntime >> 24);
+        copyReversed(nbits, header, 72);
+        return header;
     }
 
-    public static final BigInteger TARGET_DIFFICULTY_ONE = new BigInteger("00000000ffff0000000000000000000000000000000000000000000000000000");
+    private static void copyReversed(byte[] src, byte[] dest, int destPos) {
+        for (int srcPos = src.length - 1; srcPos >= 0 && destPos < dest.length; destPos++, srcPos--) {
+            dest[destPos] = src[srcPos];
+        }
+    }
+
+    public static byte[] blockHash(byte[] header, int nonce) {
+        HASHER.update(header);
+        HASHER.update((byte) (nonce));
+        HASHER.update((byte) (nonce >> 8));
+        HASHER.update((byte) (nonce >> 16));
+        HASHER.update((byte) (nonce >> 24));
+        //HASHER.update(HEADERPADDING);
+        return HASHER.digest(HASHER.digest());
+    }
+
+    public static final BigInteger TARGET_DIFFICULTY_ONE = new BigInteger("00000000ffff0000000000000000000000000000000000000000000000000000", 16);
 
     public static byte[] getTargetForDifficulty(int d) {
         return TARGET_DIFFICULTY_ONE.divide(BigInteger.valueOf(d)).toByteArray();

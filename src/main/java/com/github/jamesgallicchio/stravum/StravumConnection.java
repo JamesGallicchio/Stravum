@@ -6,6 +6,7 @@ import com.thetransactioncompany.jsonrpc2.JSONRPC2Request;
 import com.thetransactioncompany.jsonrpc2.JSONRPC2Response;
 
 import java.io.*;
+import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.*;
@@ -14,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class StravumConnection {
 
-    private URLConnection conn;
+    private Socket s;
     private BufferedReader in;
     private BufferedWriter out;
     private boolean isListening;
@@ -33,14 +34,14 @@ public class StravumConnection {
 
     private List<Worker> workers = new ArrayList<>();
 
-    private List<MiningJob> jobs = new ArrayList<>();
+    private Map<String, MiningJob> jobs = new HashMap<>();
 
-    public StravumConnection(URL url) {
+    public StravumConnection(String url) {
         try {
             // Open connection
-            conn = url.openConnection();
-            in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            out = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()));
+            s = new Socket(url, 3333);
+            in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+            out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 
             // Send subscription message
             out.write(new JSONRPC2Request("mining.subscribe", id++).toJSONString());
@@ -76,7 +77,8 @@ public class StravumConnection {
                         if (j.isCleanJobs()) {
                             jobs.clear();
                         }
-                        jobs.add(j);
+                        jobs.put(j.getJobID(), j);
+                        workers.forEach(w -> w.updateJob.accept(j));
                     } else if ("mining.set_difficulty".equals(n.getMethod())) {
                         shareDifficulty = (int) n.getPositionalParams().get(0);
                     }
@@ -108,8 +110,18 @@ public class StravumConnection {
         }
     }
 
-    public void submitShare(Worker w, String jobID, String extranonce2, String ntime, String nonce) {
-        JSONRPC2Request r = new JSONRPC2Request("mining.submit", Arrays.asList(w.user, jobID, extranonce2, ntime, nonce), id++);
+    public void authorizeWorker(Worker w) {
+        JSONRPC2Request r = new JSONRPC2Request("mining.authorize", Arrays.asList(w.user + "." + w.worker, "pass"), id++);
+        try {
+            out.write(r.toJSONString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void submitShare(Worker w, String jobID, String ntime, String nonce) {
+
+        JSONRPC2Request r = new JSONRPC2Request("mining.submit", Arrays.asList(w.user, jobID, jobs.get(jobID).getExtranonce2(), ntime, nonce), id++);
         try {
             out.write(r.toJSONString());
         } catch (IOException e) {

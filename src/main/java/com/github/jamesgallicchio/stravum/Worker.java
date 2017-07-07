@@ -5,12 +5,12 @@ import java.util.function.Consumer;
 public class Worker {
 
     public final String user;
-    public final String pass;
+    public final String worker;
     public final Consumer<MiningJob> updateJob;
 
-    public Worker(String user, String pass, Consumer<MiningJob> updateJob) {
+    public Worker(String user, String worker, Consumer<MiningJob> updateJob) {
         this.user = user;
-        this.pass = pass;
+        this.worker = worker;
         this.updateJob = updateJob;
     }
 
