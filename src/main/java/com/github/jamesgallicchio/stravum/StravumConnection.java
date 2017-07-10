@@ -15,13 +15,7 @@ import java.util.stream.Collectors;
 
 public class StravumConnection {
 
-    private Socket s;
-    private BufferedReader in;
-    private BufferedWriter out;
-    private boolean isListening;
-    private Map<Object, Consumer<JSONRPC2Response>> waiting;
-    private Consumer<JSONRPC2Notification> notifHandler;
-
+    private JsonRPCSocket s;
     private int id = 0;
 
     private String notifID;
@@ -36,16 +30,14 @@ public class StravumConnection {
 
     private Map<String, MiningJob> jobs = new HashMap<>();
 
-    public StravumConnection(String url) {
+    public StravumConnection(String url, int port) {
         try {
             // Open connection
-            s = new Socket(url, 3333);
-            in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-            out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+            s = new JsonRPCSocket(url, port);
 
             // Send subscription message
-            out.write(new JSONRPC2Request("mining.subscribe", id++).toJSONString());
-            JSONRPC2Response res = new JSONRPC2Response(in.readLine());
+            JSONRPC2Response res = s.request(new JSONRPC2Request("mining.subscribe", id++));
+
             if (res.getError() == null) {
                 // Get response and break up all the resulting information
                 List<Object> connRes = (List<Object>) res.getResult();
@@ -58,7 +50,7 @@ public class StravumConnection {
                 exnonce2Size = (Integer) connRes.get(3);
 
                 // Instantiate notifHandler
-                notifHandler = n -> {
+                s.addNotificationHandler(n -> {
                     if ("mining.notify".equals(n.getMethod())) {
                         List<Object> params = n.getPositionalParams();
                         MiningJob j = new MiningJob(
@@ -82,26 +74,7 @@ public class StravumConnection {
                     } else if ("mining.set_difficulty".equals(n.getMethod())) {
                         shareDifficulty = (int) n.getPositionalParams().get(0);
                     }
-                };
-
-                // Start listening on the socket for responses and notifications
-                isListening = true;
-                waiting = new HashMap<>();
-                new Thread(() -> {
-                    try {
-                        while (isListening) {
-                            JSONRPC2Message msg = JSONRPC2Message.parse(in.readLine());
-                            if (msg instanceof JSONRPC2Response) {
-                                Consumer<JSONRPC2Response> h = waiting.remove(((JSONRPC2Response) msg).getID());
-                                if (h != null) h.accept((JSONRPC2Response) msg);
-                            } else if (msg instanceof JSONRPC2Notification) {
-                                notifHandler.accept((JSONRPC2Notification) msg);
-                            }
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }).run();
+                });
             } else {
                 System.out.println("Error on subscription message! " + res.getError().getMessage());
             }
@@ -110,20 +83,22 @@ public class StravumConnection {
         }
     }
 
-    public void authorizeWorker(Worker w) {
+    public boolean authorizeWorker(Worker w) {
         JSONRPC2Request r = new JSONRPC2Request("mining.authorize", Arrays.asList(w.user + "." + w.worker, "pass"), id++);
         try {
-            out.write(r.toJSONString());
+            JSONRPC2Response res = s.request(r);
+            return (Boolean) res.getResult();
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return false;
     }
 
     public void submitShare(Worker w, String jobID, String ntime, String nonce) {
 
         JSONRPC2Request r = new JSONRPC2Request("mining.submit", Arrays.asList(w.user, jobID, jobs.get(jobID).getExtranonce2(), ntime, nonce), id++);
         try {
-            out.write(r.toJSONString());
+            s.request(r);
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -13,7 +13,7 @@ public class StravumTester {
 
         System.out.println();
 
-        StravumConnection c = new StravumConnection("us-east.stratum.slushpool.com");
+        StravumConnection c = new StravumConnection("us-east.stratum.slushpool.com", 8080);
 
         AtomicReference<String> blockHead = new AtomicReference<>();
         AtomicInteger nonce = new AtomicInteger();
