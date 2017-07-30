@@ -3,6 +3,7 @@ package com.github.jamesgallicchio.stravum;
 import com.thetransactioncompany.jsonrpc2.*;
 
 import java.io.*;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,7 @@ public class JsonRPCSocket implements Closeable {
 
     public JsonRPCSocket(String url, int port) {
         try {
-            s = new Socket(url, port);
+            s = new Socket(InetAddress.getByName(url), port, InetAddress.getLocalHost(), 0);
             in = new BufferedReader(new InputStreamReader(s.getInputStream()));
             out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
         } catch (IOException e) {

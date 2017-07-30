@@ -6,7 +6,7 @@ public class StravumTester {
 
         System.out.println();
 
-        StravumConnection c = new StravumConnection("us-east.stratum.slushpool.com", 8080);
+        StravumConnection c = new StravumConnection("us-east.stratum.slushpool.com", 3333);
 
         Worker w = new Worker("jamesgallicchio", "worker1", j -> {
             System.out.println(j.getJobID());

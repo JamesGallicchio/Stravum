@@ -1,14 +1,10 @@
 package com.github.jamesgallicchio.stravum;
 
-import com.thetransactioncompany.jsonrpc2.JSONRPC2Message;
-import com.thetransactioncompany.jsonrpc2.JSONRPC2Notification;
 import com.thetransactioncompany.jsonrpc2.JSONRPC2Request;
 import com.thetransactioncompany.jsonrpc2.JSONRPC2Response;
 
-import java.io.*;
-import java.net.Socket;
+import java.io.IOException;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class StravumConnection {
@@ -32,52 +28,6 @@ public class StravumConnection {
         try {
             // Open connection
             s = new JsonRPCSocket(url, port);
-
-            // Instantiate notifHandler
-            notifHandler = n -> {
-                if ("mining.notify".equals(n.getMethod())) {
-                    List<Object> params = n.getPositionalParams();
-                    MiningJob j = new MiningJob(
-                            (String) params.get(0),
-                            (String) params.get(1),
-                            (String) params.get(2),
-                            (String) params.get(3),
-                            (List<String>) params.get(4),
-                            (String) params.get(5),
-                            (String) params.get(6),
-                            (String) params.get(7),
-                            (boolean) params.get(8),
-                            exnonce1, exnonce2Size,
-                            shareDifficulty, difficulty
-                    );
-                    if (j.isCleanJobs()) {
-                        jobs.clear();
-                    }
-                    jobs.put(j.getJobID(), j);
-                    workers.forEach(w -> w.updateJob.accept(j));
-                } else if ("mining.set_difficulty".equals(n.getMethod())) {
-                    shareDifficulty = (int) n.getPositionalParams().get(0);
-                }
-            };
-
-            // Start listening on the socket for responses and notifications
-            isListening = true;
-            waiting = new HashMap<>();
-            new Thread(() -> {
-                try {
-                    while (isListening) {
-                        JSONRPC2Message msg = JSONRPC2Message.parse(in.readLine());
-                        if (msg instanceof JSONRPC2Response) {
-                            Consumer<JSONRPC2Response> h = waiting.remove(((JSONRPC2Response) msg).getID());
-                            if (h != null) h.accept((JSONRPC2Response) msg);
-                        } else if (msg instanceof JSONRPC2Notification) {
-                            notifHandler.accept((JSONRPC2Notification) msg);
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }).run();
 
             // Send subscription message
             JSONRPC2Response res = s.request(new JSONRPC2Request("mining.subscribe", id++));
@@ -128,9 +78,8 @@ public class StravumConnection {
     }
 
     public boolean authorizeWorker(Worker w) {
-        JSONRPC2Request r = new JSONRPC2Request("mining.authorize", Arrays.asList(w.user + "." + w.worker, "pass"), id++);
         try {
-            JSONRPC2Response res = s.request(r);
+            JSONRPC2Response res = s.request(new JSONRPC2Request("mining.authorize", Arrays.asList(w.user + "." + w.worker, "pass"), id++));
             return (Boolean) res.getResult();
         } catch (IOException e) {
             e.printStackTrace();
@@ -139,10 +88,8 @@ public class StravumConnection {
     }
 
     public void submitShare(Worker w, String jobID, String ntime, String nonce) {
-
-        JSONRPC2Request r = new JSONRPC2Request("mining.submit", Arrays.asList(w.user, jobID, jobs.get(jobID).getExtranonce2(), ntime, nonce), id++);
         try {
-            s.request(r);
+            s.request(new JSONRPC2Request("mining.submit", Arrays.asList(w.user, jobID, jobs.get(jobID).getExtranonce2(), ntime, nonce), id++));
         } catch (IOException e) {
             e.printStackTrace();
         }
