@@ -19,7 +19,9 @@ class StravumConnection(host: String, port: Int) {
   private def nextID = Json.toJson(requestIdCounter.incrementAndGet())
 
   // Subscribe
+  println("Subscribing")
   private val subscribeRes = Await.result(s.request(Request(nextID, "mining.subscribe")), Duration.Inf)
+  println("Subscribed")
   private val subInfo = subscribeRes.getError match {
     case Some(Response.Error(c, m, _)) => throw new Exception(s"Error on subscribe ($c): $m")
     case _ => subscribeRes.result

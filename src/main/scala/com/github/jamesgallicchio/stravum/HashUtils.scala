@@ -8,12 +8,27 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 object HashUtils {
-  private val hasher = MessageDigest.getInstance("SHA-256")
+  private def newHasher = MessageDigest.getInstance("SHA-256")
+  private var hashers = List[MessageDigest]()
+  def hasherLock[T](f: MessageDigest => T) = {
+    val hasher = hashers.synchronized(hashers match {
+      case Nil => newHasher
+      case head :: tail => hashers = tail; head
+    })
+    val res = f(hasher)
+    hashers.synchronized(hashers = hasher :: hashers)
+    res
+  }
+
   type Hash = Array[Byte]
 
   /* ------ STRING HEX STUFF ------ */
   def hex(bytes: ByteBuffer): String = hex(bytes.array())
   def hex(bytes: Array[Byte]): String = bytes.foldLeft("") { (s, b) => s + Integer.toHexString(15 & (b >> 4)) + Integer.toHexString(15 & b)}
+
+  implicit class BytesToHex(val bytes: Array[Byte]) extends AnyVal {
+    def hex: String = HashUtils.hex(bytes)
+  }
 
   implicit class HexConversions(val hex: String) extends AnyVal {
     def unhex: Array[Byte] = hex.grouped(2).map(b => ((b.charAt(0).asDigit << 4) | b.charAt(1).asDigit).asInstanceOf[Byte]).toArray
@@ -22,15 +37,18 @@ object HashUtils {
 
   /* ------ HASH STUFF ------ */
   implicit class ByteArrayHasher(val bytes: Array[Byte]) extends AnyVal {
-    def hash: Hash = hasher.digest(bytes)
-    def hash2: Hash = bytes.hash.hash
+    def hash: Hash = hasherLock(_.digest(bytes))
+    def hash2: Hash = hasherLock{ h => h.digest(h.digest(bytes)) }
   }
 
-  def hash(data: Array[Byte]*): Hash = {
-    data.foreach(hasher.update)
-    hasher.digest
+  def hash(data: Array[Byte]*): Hash = hasherLock{ h =>
+    data.foreach(h.update)
+    h.digest
   }
-  def hash2(data: Array[Byte]*): Hash = hash(data: _*).hash
+  def hash2(data: Array[Byte]*): Hash = hasherLock{ h =>
+    data.foreach(h.update)
+    h.digest(h.digest)
+  }
 
   /* ------ HASH TARGET STUFF ------ */
   private val target1 = new BigInteger("00000000ffff0000000000000000000000000000000000000000000000000000".unhex)
