@@ -31,7 +31,11 @@ object HashUtils {
   }
 
   implicit class HexConversions(val hex: String) extends AnyVal {
-    def unhex: Array[Byte] = hex.grouped(2).map(b => ((b.charAt(0).asDigit << 4) | b.charAt(1).asDigit).asInstanceOf[Byte]).toArray
+    def unhex: Array[Byte] = hex.grouped(2).map(b =>
+        ((b.charAt(0).asDigit << 4) |
+          (if (b.length < 2) 0 else b.charAt(1).asDigit))
+        .asInstanceOf[Byte]
+      ).toArray
     def intUnhex: Int = Integer.parseUnsignedInt(hex, 16)
   }
 

@@ -3,7 +3,7 @@ package com.github.jamesgallicchio.stravum.stravum
 import java.nio.{ByteBuffer, ByteOrder}
 import java.security.MessageDigest
 
-import com.github.jamesgallicchio.stravum.HashUtils.{Hash, hasherLock}
+import com.github.jamesgallicchio.stravum.HashUtils.Hash
 
 class Header private (val bytes: Array[Byte]) extends AnyVal {
   def hash(nonce: Int, h: MessageDigest): Hash = {

@@ -6,8 +6,8 @@ import com.github.jamesgallicchio.stravum.HashUtils
 import com.github.jamesgallicchio.stravum.HashUtils.HexConversions
 import com.github.jamesgallicchio.stravum.jsonrpc.JsonRPCSocket
 import com.github.jamesgallicchio.stravum.jsonrpc.Message.{Notify, Request, Response}
-import monix.reactive.Observable
 import monix.execution.Scheduler.Implicits.global
+import monix.reactive.Observable
 import play.api.libs.json.{JsString, Json, Reads}
 
 import scala.concurrent.duration.Duration
@@ -55,7 +55,7 @@ class StravumConnection(host: String, port: Int) {
         nTime <- p(7).validate[String].asOpt
         clean <- p(8).validate[Boolean].asOpt
       } yield MiningJob(
-        jobID,
+        jobID.unhex,
         prevhash.unhex,
         coinb1.unhex,
         coinb2.unhex,
@@ -71,7 +71,7 @@ class StravumConnection(host: String, port: Int) {
 
     // Ignore any other notifications?? *shouldn't happen* *sweats nervously*
     case j => println(s"Received weird notification: ${j.method}(${j.params})"); None
-  }.filter(_.isDefined).map(_.get) // Remove all the Nones and extract the MiningJobs
+  }.behavior(None).filter(_.isDefined).map(_.get) // Remove all the Nones and extract the MiningJobs
 
 
   // For handling futures validation
@@ -81,7 +81,7 @@ class StravumConnection(host: String, port: Int) {
     // No error
     case None => r.result.validate[T].asOpt match {
         // Unexpected type of result
-      case None => Future.failed(new Exception)
+      case None => Future.failed(new ClassCastException)
         // Everything is good we were success A+
       case Some(t) => Future.successful(t)
     }
